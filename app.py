@@ -13,13 +13,13 @@ from AppKit import (
     NSBackingStoreBuffered,
     NSBezelStyleRounded,
     NSButton,
-    NSClosableWindowMask,
     NSFont,
     NSMakeRect,
     NSOpenPanel,
     NSTextField,
-    NSTitledWindowMask,
     NSWindow,
+    NSWindowStyleMaskClosable,
+    NSWindowStyleMaskTitled,
 )
 
 from sync import (
@@ -30,6 +30,7 @@ from sync import (
     APP_VERSION,
     APP_WEBSITE,
     LOG_FILE,
+    PERMISSION_DENIED_ERROR,
     SyncProgress,
     add_history_entry,
     ensure_smb_mounts,
@@ -109,6 +110,14 @@ def _create_config_delegate_class():
 _ConfigDelegate = _create_config_delegate_class()
 
 
+def _activate_app():
+    """Bring the app to the front. activateIgnoringOtherApps_ is deprecated since macOS 14."""
+    if NSApp.respondsToSelector_('activate'):
+        NSApp.activate()
+    else:
+        NSApp.activateIgnoringOtherApps_(True)
+
+
 class _ConfigWindow:
     """Native macOS preferences window for FolderSync configuration."""
 
@@ -120,12 +129,12 @@ class _ConfigWindow:
         self._delegate = _ConfigDelegate.alloc().initWithConfigWindow_(self)
         self._build_window()
         self.window.makeKeyAndOrderFront_(None)
-        NSApp.activateIgnoringOtherApps_(True)
+        _activate_app()
 
     def _build_window(self):
         self.window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
             NSMakeRect(0, 0, self.WIDTH, self.HEIGHT),
-            NSTitledWindowMask | NSClosableWindowMask,
+            NSWindowStyleMaskTitled | NSWindowStyleMaskClosable,
             NSBackingStoreBuffered,
             False,
         )
@@ -639,7 +648,13 @@ class FolderSyncApp(rumps.App):
     def _run_sync_inner(self):
         max_retries = 3
         retry_delay = 30
-        non_retryable = {'Google Drive not mounted', 'NAS not mounted', 'rclone not found — run: brew install rclone', 'Sync cancelled'}
+        non_retryable = {
+            'Google Drive not mounted',
+            'NAS not mounted',
+            'rclone not found — run: brew install rclone',
+            'Sync cancelled',
+            PERMISSION_DENIED_ERROR,
+        }
 
         logger.info('Sync started: %s -> %s', self.config['source'], self.config['destination'])
 
@@ -756,7 +771,7 @@ class FolderSyncApp(rumps.App):
         """Open the native preferences window."""
         if hasattr(self, '_config_window') and self._config_window is not None:
             self._config_window.window.makeKeyAndOrderFront_(None)
-            NSApp.activateIgnoringOtherApps_(True)
+            _activate_app()
             return
         self._config_window = _ConfigWindow(self)
 

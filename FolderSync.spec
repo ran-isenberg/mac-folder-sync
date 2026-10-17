@@ -61,5 +61,9 @@ app = BUNDLE(
         'CFBundleShortVersionString': VERSION,
         'LSMinimumSystemVersion': '13.0',
         'NSAppleEventsUsageDescription': 'FolderSync needs access to run rclone.',
+        # Privacy prompts — without these, macOS silently denies access (EPERM) to cloud-storage files and network shares
+        'NSFileProviderDomainUsageDescription': 'FolderSync reads your cloud storage folders (e.g. Google Drive) to back them up.',
+        'NSNetworkVolumesUsageDescription': 'FolderSync writes backups to your network share (NAS).',
+        'NSRemovableVolumesUsageDescription': 'FolderSync can back up to external drives.',
     },
 )

@@ -91,6 +91,11 @@ else
   echo "⚠️  rclone not found — app will require rclone to be installed separately"
 fi
 
+# Adding rclone invalidates PyInstaller's signature — re-sign (ad-hoc) so macOS
+# accepts the bundle and keeps privacy permissions (Full Disk Access) across launches
+codesign --force --deep --sign - "$APP_SRC"
+codesign --verify --deep --strict "$APP_SRC" && echo "✅  App signed (ad-hoc)"
+
 # ── 10. Build the DMG ─────────────────────────────────────────────────
 echo ""
 echo "💿  Building FolderSync.dmg..."

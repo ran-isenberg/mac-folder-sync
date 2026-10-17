@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sync import (
+    PERMISSION_DENIED_ERROR,
     SMB_MOUNT_TIMEOUT,
     SyncProgress,
     SyncResult,
@@ -20,6 +21,7 @@ from sync import (
     parse_stats_line,
     run_sync,
     run_sync_live,
+    summarize_rclone_error,
     truncate_log,
     validate_paths,
 )
@@ -292,6 +294,27 @@ class TestBuildRcloneCommand:
     def test_checksum_disabled_explicitly(self):
         cmd = build_rclone_command('/src', '/dst', use_checksum=False)
         assert '--checksum' not in cmd
+
+    def test_excludes_macos_metadata(self):
+        cmd = build_rclone_command('/src', '/dst', live=True)
+        assert '--exclude=.DS_Store' in cmd
+        assert '--exclude=._*' in cmd
+
+
+class TestSummarizeRcloneError:
+    def test_permission_denied(self):
+        stderr = 'ERROR : a.jpeg: Failed to calculate src hash: hash: failed to open: open /x/a.jpeg: operation not permitted\n'
+        assert summarize_rclone_error(stderr) == PERMISSION_DENIED_ERROR
+
+    def test_failed_with_n_errors(self):
+        stderr = 'NOTICE: Failed to sync with 25 errors: last error was: rename /a/.DS_Store.partial /a/.DS_Store: no such file or directory\n'
+        assert summarize_rclone_error(stderr) == 'Failed to sync with 25 errors — see log'
+
+    def test_falls_back_to_last_line(self):
+        assert summarize_rclone_error('first\nsecond\n') == 'second'
+
+    def test_empty(self):
+        assert summarize_rclone_error('') == 'rclone error'
 
 
 class TestParseStatsLine:

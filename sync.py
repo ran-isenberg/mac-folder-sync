@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
-APP_VERSION = '1.0.0'
+APP_VERSION = '1.0.2'
 APP_BUILD_TIME = 'dev'  # stamped by build.sh
 APP_BUILD_HASH = 'dev'  # stamped by build.sh
 APP_AUTHOR = 'Ran Isenberg'
@@ -40,6 +40,21 @@ DEFAULT_CONFIG = {
     'source_smb_url': '',
     'destination_smb_url': '',
 }
+
+# macOS Finder/Spotlight metadata — never worth syncing, and macOS's SMB client refuses to
+# create .DS_Store on network shares, so rclone's ".partial" -> ".DS_Store" rename fails every run.
+MACOS_METADATA_EXCLUDES = [
+    '.DS_Store',
+    '._*',
+    '.Spotlight-V100/**',
+    '.Trashes/**',
+    '.fseventsd/**',
+    '.TemporaryItems/**',
+]
+
+PERMISSION_DENIED_ERROR = 'macOS blocked file access — grant FolderSync Full Disk Access'
+
+_RE_SYNC_FAILED = re.compile(r'Failed to sync with (\d+) errors?')
 
 # rclone --stats-one-line output patterns
 # With --progress: "Transferred:   1.234 GiB / 5.678 GiB, 22%, 10.5 MiB/s, ETA 5m30s"
@@ -480,9 +495,22 @@ def build_rclone_command(source: str, destination: str, log_file: str | None = N
     else:
         # In non-live mode, rclone writes directly to the log file.
         cmd += [f'--log-file={log_file}', '--log-level=INFO', '--stats-log-level=NOTICE']
+    for pattern in MACOS_METADATA_EXCLUDES:
+        cmd.append(f'--exclude={pattern}')
     if use_checksum:
         cmd.append('--checksum')
     return cmd
+
+
+def summarize_rclone_error(stderr: str) -> str:
+    """Turn rclone's stderr into a short, actionable error message."""
+    if 'operation not permitted' in stderr:
+        return PERMISSION_DENIED_ERROR
+    match = _RE_SYNC_FAILED.search(stderr)
+    if match:
+        return f'Failed to sync with {match.group(1)} errors — see log'
+    lines = stderr.strip().split('\n')
+    return lines[-1][:80] if lines[-1] else 'rclone error'
 
 
 def run_sync(source: str, destination: str, log_file: str | None = None, use_checksum: bool = False) -> tuple[bool, str | None, str | None]:
@@ -501,7 +529,7 @@ def run_sync(source: str, destination: str, log_file: str | None = None, use_che
             timestamp = datetime.now().strftime('%b %d, %H:%M')
             return True, None, timestamp
         else:
-            error = result.stderr.strip().split('\n')[-1][:80] if result.stderr else 'rclone error'
+            error = summarize_rclone_error(result.stderr or '')
             logger.error('rclone failed (exit %d): %s', result.returncode, error)
             return False, error, None
     except FileNotFoundError:
@@ -600,13 +628,12 @@ def run_sync_live(
                 duration_seconds=duration,
             )
         else:
-            all_stderr = ''.join(stderr_lines)
-            last_line = all_stderr.strip().split('\n')[-1][:80] if all_stderr.strip() else 'rclone error'
-            logger.error('rclone failed (exit %d) after %ds: %s', proc.returncode, duration, last_line)
+            error = summarize_rclone_error(''.join(stderr_lines))
+            logger.error('rclone failed (exit %d) after %ds: %s', proc.returncode, duration, error)
             return SyncResult(
                 timestamp=datetime.now().strftime('%b %d, %H:%M'),
                 success=False,
-                error=last_line,
+                error=error,
                 bytes_transferred=progress.bytes_transferred,
                 files_transferred=progress.files_done,
                 duration_seconds=duration,

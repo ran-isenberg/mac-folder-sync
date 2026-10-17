@@ -1,6 +1,6 @@
 [project]
 name = "foldersync"
-version = "1.0.0"
+version = "1.0.2"
 description = "FolderSync — macOS menu bar wrapper around rclone for automated folder sync"
 license = "AGPL-3.0-only"
 authors = [
@@ -10,15 +10,15 @@ urls = { Homepage = "https://www.ranthebuilder.cloud", Sponsor = "https://github
 requires-python = ">=3.14"
 dependencies = [
     "rumps>=0.4.0",
-    "pyobjc-framework-Cocoa>=10.0",
+    "pyobjc-framework-Cocoa>=12.2.2",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.11.0",
-    "pyinstaller>=6.0.0",
-    "Pillow>=10.0.0",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+    "pyinstaller>=6.22.3",
+    "Pillow>=13.0.0",
 ]
 
 [tool.pytest.ini_options]
@@ -77,7 +77,7 @@ line-ending = "auto"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["PLR2004", "PLC0415"]
 "app.py" = ["PLR0915", "PLR2004", "PLW0642"]
-"sync.py" = ["PLR0913", "PLR0911", "PLR2004", "C901", "PLR0915"]
+"sync.py" = ["PLR0913", "PLR0917", "PLR0911", "PLR2004", "C901", "PLR0915"]
 
 [tool.ruff.lint.isort]
 known-third-party = ["rumps"]
